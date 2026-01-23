@@ -1,0 +1,57 @@
+name: Validate Package
+
+on:
+  pull_request:
+    paths:
+      - 'packages/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed
+        run: |
+          echo "files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '^packages/' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+
+      - name: Validate TOML format
+        run: |
+          for file in ${{ steps.changed.outputs.files }}; do
+            if [[ "$file" == *.toml ]]; then
+              echo "Validating: $file"
+              ./scripts/validate.sh "$file"
+            fi
+          done
+
+      - name: Verify URLs and checksums
+        run: |
+          for file in ${{ steps.changed.outputs.files }}; do
+            if [[ "$file" == */*.toml ]] && [[ "$file" != */meta.toml ]] && [[ "$file" != */author.toml ]]; then
+              echo "Verifying files for: $file"
+              ./scripts/verify-files.sh "$file"
+            fi
+          done
+
+      - name: Check for required fields
+        run: |
+          for file in ${{ steps.changed.outputs.files }}; do
+            if [[ "$file" == */meta.toml ]]; then
+              echo "Checking required fields: $file"
+              ./scripts/check-meta.sh "$file"
+            fi
+          done
+
+      - name: Add validation summary
+        if: always()
+        run: |
+          echo "## Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ $? -eq 0 ]; then
+            echo "All checks passed." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Some checks failed. Please review the errors above." >> $GITHUB_STEP_SUMMARY
+          fi
