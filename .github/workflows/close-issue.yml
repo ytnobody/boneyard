@@ -1,0 +1,49 @@
+name: Close Registration Issue
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  close:
+    if: github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'registration')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Extract issue number from PR body
+        id: extract
+        run: |
+          # Parse PR body for issue number
+          BODY="${{ github.event.pull_request.body }}"
+          ISSUE=$(echo "$BODY" | grep -oP 'Issue.*#\K\d+' | head -1)
+
+          if [[ -n "$ISSUE" ]]; then
+            echo "issue=$ISSUE" >> $GITHUB_OUTPUT
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Close issue with comment
+        if: steps.extract.outputs.found == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = ${{ steps.extract.outputs.issue }};
+
+            await github.rest.issues.createComment({
+              issue_number: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Your module has been registered! It will be indexed shortly and available via Boneyard.'
+            });
+
+            await github.rest.issues.update({
+              issue_number: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              state_reason: 'completed'
+            });

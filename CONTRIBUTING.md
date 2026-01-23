@@ -2,104 +2,69 @@
 
 Thank you for your interest in contributing to the Calcium module registry!
 
-## Adding a New Module
+## Registering Your Module
 
 ### Prerequisites
 
-1. Your module must be hosted in a public Git repository (GitHub recommended)
-2. You must have created a version tag (e.g., `v1.0.0`)
-3. Your module should include a `mod.ca` entry point
+1. Your module must be hosted in a public Git repository (GitHub, GitLab, etc.)
+2. Your repository must contain a `meta.toml` file
 
-### Step-by-Step Guide
+### Step 1: Create meta.toml
 
-#### 1. Fork this repository
-
-Click the "Fork" button on GitHub.
-
-#### 2. Create your package directory
-
-```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/boneyard
-cd boneyard
-
-# Create directory (use uppercase for author name)
-# Pattern: packages/{FIRST_LETTER}/{FIRST_TWO_LETTERS}/{AUTHOR}/{MODULE}
-mkdir -p packages/J/JO/JOHNDOE/my-module
-```
-
-#### 3. Create meta.toml
+Add `meta.toml` to your repository root:
 
 ```toml
-# packages/J/JO/JOHNDOE/my-module/meta.toml
-
 name = "my-module"
-author = "JOHNDOE"
+author = "YOURNAME"
 description = "A brief description of your module"
-repository = "https://github.com/johndoe/calcium-my-module"
 license = "MIT"
 keywords = ["utility", "helper"]
-latest = "1.0.0"
-```
-
-#### 4. Create version file
-
-Calculate SHA256 hashes for your files:
-
-```bash
-sha256sum mod.ca lib.ca
-```
-
-Then create the version file:
-
-```toml
-# packages/J/JO/JOHNDOE/my-module/1.0.0.toml
-
-version = "1.0.0"
-published = "2025-01-23"
 entry = "mod.ca"
-base_url = "https://raw.githubusercontent.com/johndoe/calcium-my-module/v1.0.0/"
-
-[files]
-"mod.ca" = "sha256:abc123..."
-"lib.ca" = "sha256:def456..."
 ```
 
-#### 5. Submit Pull Request
+### Step 2: Open an Issue
+
+[Create a new issue](https://github.com/calcium-lang/boneyard/issues/new) with the URL to your `meta.toml`:
+
+```
+https://github.com/yourname/my-module/blob/main/meta.toml
+```
+
+That's all you need to do! We'll take it from there.
+
+## Versioning
+
+Boneyard automatically discovers versions from your Git repository:
+
+- **With releases**: Users can install `@1.0.0`, `@2.0.0`, etc.
+- **Without releases**: Users can install by commit hash `@abc1234`
+- **No version specified**: Latest release or main HEAD
+
+To create a release:
 
 ```bash
-git add .
-git commit -m "Add JOHNDOE/my-module@1.0.0"
-git push origin main
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-Then create a Pull Request on GitHub.
+## meta.toml Fields
 
-### Adding a New Version
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Module name |
+| `author` | Yes | Author name (uppercase recommended) |
+| `description` | Yes | Brief description |
+| `license` | No | License identifier (default: MIT) |
+| `keywords` | No | Search keywords |
+| `entry` | No | Entry point file (default: mod.ca) |
 
-1. Create a new tag in your module repository
-2. Add a new version file (e.g., `1.1.0.toml`)
-3. Update `latest` in `meta.toml`
-4. Submit a Pull Request
+## Updating Your Module
 
-## Validation
+Just push new releases to your repository. Boneyard will automatically pick them up during the next crawl.
 
-Your PR will be automatically validated for:
+## Removing Your Module
 
-- Valid TOML syntax
-- Required fields present
-- URLs are reachable
-- Checksums match
-
-## License
-
-If you don't specify a license, MIT will be auto-applied.
-
-Recommended licenses:
-- MIT (default)
-- Apache-2.0
-- BSD-3-Clause
-- GPL-3.0
+Open an issue requesting removal, and we'll remove it from the registry.
 
 ## Questions?
 

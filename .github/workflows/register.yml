@@ -1,0 +1,193 @@
+name: Process Registration
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  process:
+    if: contains(github.event.issue.labels.*.name, 'registration')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract URL from issue
+        id: extract
+        run: |
+          # Extract URL from code block in issue body
+          URL=$(echo "${{ github.event.issue.body }}" | grep -oP 'https://raw\.githubusercontent\.com/[^\s`]+meta\.toml' | head -1)
+
+          if [[ -z "$URL" ]]; then
+            echo "No valid meta.toml URL found"
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "valid=true" >> $GITHUB_OUTPUT
+          echo "Found URL: $URL"
+
+      - name: Comment if no URL found
+        if: steps.extract.outputs.valid == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Could not find a valid meta.toml URL. Please use the raw GitHub URL format:\n```\nhttps://raw.githubusercontent.com/AUTHOR/REPO/main/meta.toml\n```'
+            })
+
+      - name: Fetch meta.toml
+        if: steps.extract.outputs.valid == 'true'
+        id: fetch
+        run: |
+          curl -fsSL "${{ steps.extract.outputs.url }}" -o meta.toml
+
+          if [[ ! -s meta.toml ]]; then
+            echo "Failed to fetch meta.toml"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "success=true" >> $GITHUB_OUTPUT
+          cat meta.toml
+
+      - name: Validate meta.toml
+        if: steps.fetch.outputs.success == 'true'
+        id: validate
+        run: |
+          chmod +x ./scripts/validate-meta.sh
+
+          if ./scripts/validate-meta.sh meta.toml; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "valid=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on validation failure
+        if: steps.validate.outputs.valid == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Validation failed. Please check your meta.toml:\n- Required fields: `name`, `author`, `description`\n- `author` must be UPPERCASE\n- `name` must be lowercase with hyphens only'
+            })
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['invalid']
+            })
+
+      - name: Create directory structure
+        if: steps.validate.outputs.valid == 'true'
+        id: structure
+        run: |
+          # Parse meta.toml
+          AUTHOR=$(grep '^author = ' meta.toml | sed 's/^author = "\(.*\)"$/\1/')
+          NAME=$(grep '^name = ' meta.toml | sed 's/^name = "\(.*\)"$/\1/')
+          KEYWORDS=$(grep '^keywords = ' meta.toml | sed 's/^keywords = \[\(.*\)\]$/\1/' | tr -d ' "' || echo "")
+
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+
+          # Create path: A/AU/AUTHOR
+          PREFIX1="${AUTHOR:0:1}"
+          PREFIX2="${AUTHOR:0:2}"
+          INDEX_PATH="index/${PREFIX1}/${PREFIX2}/${AUTHOR}/${NAME}"
+
+          echo "index_path=$INDEX_PATH" >> $GITHUB_OUTPUT
+
+          # Check if already exists
+          if [[ -d "$INDEX_PATH" ]]; then
+            echo "Module already registered: $INDEX_PATH"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "exists=false" >> $GITHUB_OUTPUT
+
+          # Create index directory
+          mkdir -p "$INDEX_PATH"
+
+          # Derive source_url from raw URL
+          SOURCE_URL=$(echo "${{ steps.extract.outputs.url }}" | sed 's|raw.githubusercontent.com|github.com|' | sed 's|/main/meta.toml||' | sed 's|/master/meta.toml||')
+
+          # Add source_url to meta.toml
+          echo "" >> meta.toml
+          echo "source_url = \"${SOURCE_URL}\"" >> meta.toml
+          mv meta.toml "$INDEX_PATH/meta.toml"
+
+          # Create symlinks for tags
+          if [[ -n "$KEYWORDS" ]]; then
+            IFS=',' read -ra TAGS <<< "$KEYWORDS"
+            for tag in "${TAGS[@]}"; do
+              tag=$(echo "$tag" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+              if [[ -n "$tag" ]]; then
+                TAG_PATH="tags/${tag}/${PREFIX1}/${PREFIX2}/${AUTHOR}"
+                mkdir -p "$TAG_PATH"
+                # Calculate relative path for symlink
+                ln -s "../../../../../index/${PREFIX1}/${PREFIX2}/${AUTHOR}/${NAME}" "$TAG_PATH/${NAME}"
+                echo "Created tag symlink: $TAG_PATH/${NAME}"
+              fi
+            done
+          fi
+
+          echo "Directory structure created"
+
+      - name: Comment if already exists
+        if: steps.structure.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'This module is already registered.'
+            })
+            github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed'
+            })
+
+      - name: Create Pull Request
+        if: steps.structure.outputs.exists == 'false' && steps.validate.outputs.valid == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "Add ${{ steps.structure.outputs.author }}/${{ steps.structure.outputs.name }}"
+          body: |
+            Automated PR for module registration.
+
+            - **Issue**: #${{ github.event.issue.number }}
+            - **Author**: ${{ steps.structure.outputs.author }}
+            - **Module**: ${{ steps.structure.outputs.name }}
+            - **Source**: ${{ steps.extract.outputs.url }}
+          branch: "register/${{ steps.structure.outputs.author }}-${{ steps.structure.outputs.name }}"
+          labels: registration
+          commit-message: "Add ${{ steps.structure.outputs.author }}/${{ steps.structure.outputs.name }}"
+
+      - name: Comment PR created
+        if: steps.structure.outputs.exists == 'false' && steps.validate.outputs.valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Validation passed! A Pull Request has been created for your module. It will be reviewed by a maintainer.'
+            })
