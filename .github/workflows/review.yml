@@ -159,10 +159,21 @@ jobs:
             ---
             *Automated review by Boneyard*`;
 
-            await github.rest.pulls.createReview({
+            // Can't self-approve, so always use COMMENT
+            // The verdict is shown in the comment body instead
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              event: verdict,
+              issue_number: context.payload.pull_request.number,
               body: body
+            });
+
+            // Add label based on verdict
+            const label = verdict === 'APPROVE' ? 'ready-to-merge' :
+                         verdict === 'REQUEST_CHANGES' ? 'needs-fixes' : 'needs-review';
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: [label]
             });
