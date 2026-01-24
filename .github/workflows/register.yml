@@ -2,11 +2,14 @@ name: Process Registration
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened, edited, labeled]
 
 jobs:
   process:
-    if: contains(github.event.issue.labels.*.name, 'registration')
+    # Run if: has 'registration' label OR title starts with 'Register:'
+    if: |
+      contains(github.event.issue.labels.*.name, 'registration') ||
+      startsWith(github.event.issue.title, 'Register:')
     runs-on: ubuntu-latest
     permissions:
       contents: write
