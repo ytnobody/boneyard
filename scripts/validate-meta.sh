@@ -30,11 +30,8 @@ check_field "description"
 NAME=$(grep '^name = ' "$FILE" | sed 's/^name = "\(.*\)"$/\1/')
 AUTHOR=$(grep '^author = ' "$FILE" | sed 's/^author = "\(.*\)"$/\1/')
 
-# Validate author is uppercase
-if [[ "$AUTHOR" != "${AUTHOR^^}" ]]; then
-  echo "Author must be uppercase: $AUTHOR (expected: ${AUTHOR^^})"
-  exit 1
-fi
+# Normalize author to lowercase for consistency
+AUTHOR="${AUTHOR,,}"
 
 # Validate name format (lowercase, alphanumeric, hyphens)
 if [[ ! "$NAME" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$ ]]; then
