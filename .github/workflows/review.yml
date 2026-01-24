@@ -127,6 +127,7 @@ jobs:
       - name: Post Review
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.REVIEWER_TOKEN }}
           script: |
             const securityStatus = '${{ steps.security.outputs.status }}';
             const licenseStatus = '${{ steps.license.outputs.status }}';
@@ -159,21 +160,11 @@ jobs:
             ---
             *Automated review by Boneyard*`;
 
-            // Can't self-approve, so always use COMMENT
-            // The verdict is shown in the comment body instead
-            await github.rest.issues.createComment({
+            // Use separate reviewer account to approve/request changes
+            await github.rest.pulls.createReview({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              pull_number: context.payload.pull_request.number,
+              event: verdict,
               body: body
-            });
-
-            // Add label based on verdict
-            const label = verdict === 'APPROVE' ? 'ready-to-merge' :
-                         verdict === 'REQUEST_CHANGES' ? 'needs-fixes' : 'needs-review';
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              labels: [label]
             });
