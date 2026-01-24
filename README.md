@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="resources/boneyard-logo.png" alt="Boneyard" width="200">
+</p>
+
 # Boneyard
 
 The official module registry for [Calcium](https://github.com/ytnobody/calcium-lang).
