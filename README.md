@@ -1,6 +1,6 @@
 # Boneyard
 
-The official module registry for [Calcium](https://github.com/ytnobody/calcium).
+The official module registry for [Calcium](https://github.com/ytnobody/calcium-lang).
 
 ## Overview
 
@@ -133,4 +133,4 @@ updated = "2025-01-23T12:00:00Z"
 
 ---
 
-Part of the [Calcium](https://github.com/ytnobody/calcium) project.
+Part of the [Calcium](https://github.com/ytnobody/calcium-lang) project.
