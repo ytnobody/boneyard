@@ -21,9 +21,11 @@ jobs:
 
       - name: Extract URL from issue
         id: extract
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           # Extract URL from code block in issue body
-          URL=$(echo "${{ github.event.issue.body }}" | grep -oP 'https://raw\.githubusercontent\.com/[^\s`]+meta\.toml' | head -1)
+          URL=$(echo "$ISSUE_BODY" | grep -oP 'https://raw\.githubusercontent\.com/[^\s`]+meta\.toml' | head -1)
 
           if [[ -z "$URL" ]]; then
             echo "No valid meta.toml URL found"
