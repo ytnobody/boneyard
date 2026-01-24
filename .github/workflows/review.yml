@@ -130,6 +130,7 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
           repositories: boneyard
 
       - name: Post Review
@@ -188,10 +189,33 @@ jobs:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
             console.log('Auto-merging PR...');
-            await github.rest.pulls.merge({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              merge_method: 'squash'
-            });
-            console.log('PR merged successfully');
+            console.log('Repository:', context.repo.owner, '/', context.repo.repo);
+            console.log('PR number:', context.payload.pull_request.number);
+
+            try {
+              // First check what permissions the token has
+              const { data: rateLimit } = await github.rest.rateLimit.get();
+              console.log('Token is valid, rate limit remaining:', rateLimit.rate.remaining);
+
+              // Try to get PR info to verify access
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number
+              });
+              console.log('PR state:', pr.state, 'Mergeable:', pr.mergeable);
+
+              // Attempt merge
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                merge_method: 'squash'
+              });
+              console.log('PR merged successfully');
+            } catch (error) {
+              console.log('Error details:', JSON.stringify(error, null, 2));
+              console.log('Error message:', error.message);
+              console.log('Error status:', error.status);
+              throw error;
+            }
