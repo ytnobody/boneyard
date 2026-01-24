@@ -1,6 +1,6 @@
 # Boneyard
 
-The official module registry for [Calcium](https://github.com/calcium-lang/calcium).
+The official module registry for [Calcium](https://github.com/ytnobody/calcium).
 
 ## Overview
 
@@ -45,7 +45,7 @@ If you create releases, users can install specific versions. Without releases, u
 
 ### 3. Submit your module
 
-[Open an issue](https://github.com/calcium-lang/boneyard/issues/new) with:
+[Open an issue](https://github.com/ytnobody/boneyard/issues/new) with:
 
 - The URL to your `meta.toml` (e.g., `https://github.com/yourname/my-lib/blob/main/meta.toml`)
 
@@ -133,4 +133,4 @@ updated = "2025-01-23T12:00:00Z"
 
 ---
 
-Part of the [Calcium](https://github.com/calcium-lang/calcium) project.
+Part of the [Calcium](https://github.com/ytnobody/calcium) project.
