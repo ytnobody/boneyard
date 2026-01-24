@@ -1,4 +1,4 @@
-name: AI Review
+name: Module Review
 
 on:
   pull_request:
@@ -12,15 +12,15 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Find meta.toml in PR
         id: find
         run: |
-          # Find the meta.toml file added in this PR
           META_FILE=$(git diff --name-only origin/main...HEAD | grep 'meta.toml' | head -1)
 
           if [[ -z "$META_FILE" ]]; then
@@ -31,157 +31,138 @@ jobs:
 
           echo "meta_file=$META_FILE" >> $GITHUB_OUTPUT
           echo "found=true" >> $GITHUB_OUTPUT
-          echo "Found: $META_FILE"
 
-      - name: Extract source URL and fetch code
+      - name: Extract info and fetch code
         if: steps.find.outputs.found == 'true'
         id: fetch
         run: |
           META_FILE="${{ steps.find.outputs.meta_file }}"
 
-          # Extract source_url from meta.toml
-          SOURCE_URL=$(grep '^source_url = ' "$META_FILE" | sed 's/^source_url = "\(.*\)"$/\1/')
+          # Extract fields from meta.toml
+          SOURCE_URL=$(grep '^source_url = ' "$META_FILE" | sed 's/^source_url = "\(.*\)"$/\1/' || echo "")
           ENTRY=$(grep '^entry = ' "$META_FILE" | sed 's/^entry = "\(.*\)"$/\1/' || echo "mod.ca")
           LICENSE=$(grep '^license = ' "$META_FILE" | sed 's/^license = "\(.*\)"$/\1/' || echo "")
           NAME=$(grep '^name = ' "$META_FILE" | sed 's/^name = "\(.*\)"$/\1/')
           AUTHOR=$(grep '^author = ' "$META_FILE" | sed 's/^author = "\(.*\)"$/\1/')
 
-          echo "source_url=$SOURCE_URL" >> $GITHUB_OUTPUT
-          echo "entry=$ENTRY" >> $GITHUB_OUTPUT
           echo "license=$LICENSE" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
           echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "source_url=$SOURCE_URL" >> $GITHUB_OUTPUT
 
-          # Convert to raw URL and fetch entry file
-          RAW_URL=$(echo "$SOURCE_URL" | sed 's|github.com|raw.githubusercontent.com|')
-          CODE_URL="${RAW_URL}/main/${ENTRY}"
+          # Fetch source code
+          if [[ -n "$SOURCE_URL" ]]; then
+            RAW_URL=$(echo "$SOURCE_URL" | sed 's|github.com|raw.githubusercontent.com|')
+            curl -fsSL "${RAW_URL}/main/${ENTRY}" -o module_code.ca 2>/dev/null || \
+            curl -fsSL "${RAW_URL}/master/${ENTRY}" -o module_code.ca 2>/dev/null || \
+            echo ""
 
-          echo "Fetching: $CODE_URL"
-          curl -fsSL "$CODE_URL" -o module_code.ca || curl -fsSL "${RAW_URL}/master/${ENTRY}" -o module_code.ca
-
-          if [[ -s module_code.ca ]]; then
-            echo "fetch_success=true" >> $GITHUB_OUTPUT
-            echo "Code fetched successfully"
+            if [[ -s module_code.ca ]]; then
+              echo "fetch_success=true" >> $GITHUB_OUTPUT
+            else
+              echo "fetch_success=false" >> $GITHUB_OUTPUT
+            fi
           else
             echo "fetch_success=false" >> $GITHUB_OUTPUT
-            echo "Failed to fetch code"
           fi
 
-      - name: AI Review with Claude
+      - name: Security Check
         if: steps.fetch.outputs.fetch_success == 'true'
-        id: ai_review
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        id: security
         run: |
-          # Prepare the code for review
-          CODE=$(cat module_code.ca)
-          LICENSE="${{ steps.fetch.outputs.license }}"
-          NAME="${{ steps.fetch.outputs.name }}"
-          AUTHOR="${{ steps.fetch.outputs.author }}"
+          ISSUES=""
+          WARNINGS=""
 
-          # Create review prompt
-          cat > review_prompt.json << 'PROMPT_EOF'
-          {
-            "model": "claude-sonnet-4-20250514",
-            "max_tokens": 2048,
-            "messages": [
-              {
-                "role": "user",
-                "content": "You are a security reviewer for the Calcium programming language module registry (Boneyard).\n\nReview the following module and provide a JSON response with your assessment.\n\n## Module Information\n- Name: MODULE_NAME\n- Author: MODULE_AUTHOR\n- License: MODULE_LICENSE\n\n## Source Code\n```calcium\nMODULE_CODE\n```\n\n## Review Criteria\n1. **Malicious Intent**: Check for backdoors, data exfiltration, obfuscated code, hidden functionality\n2. **Security Issues**: Check for command injection, unsafe file operations, network calls to suspicious URLs\n3. **License**: Verify license is specified and valid (MIT, Apache-2.0, BSD-3-Clause, GPL-3.0, etc.)\n\n## Response Format\nRespond with ONLY a JSON object (no markdown, no explanation):\n```\n{\n  \"verdict\": \"APPROVE\" | \"REJECT\" | \"NEEDS_REVIEW\",\n  \"malicious\": {\"score\": \"none\" | \"suspicious\" | \"detected\", \"details\": \"...\"},\n  \"security\": {\"score\": \"safe\" | \"warning\" | \"critical\", \"details\": \"...\"},\n  \"license\": {\"valid\": true | false, \"name\": \"...\", \"details\": \"...\"},\n  \"summary\": \"Brief summary of the review\"\n}\n```"
-              }
-            ]
-          }
-          PROMPT_EOF
-
-          # Escape and insert values
-          CODE_ESCAPED=$(echo "$CODE" | jq -Rs .)
-          sed -i "s|MODULE_NAME|$NAME|g" review_prompt.json
-          sed -i "s|MODULE_AUTHOR|$AUTHOR|g" review_prompt.json
-          sed -i "s|MODULE_LICENSE|$LICENSE|g" review_prompt.json
-
-          # Create final request with proper code escaping
-          jq --arg code "$CODE" '.messages[0].content |= gsub("MODULE_CODE"; $code)' review_prompt.json > request.json
-
-          # Call Claude API
-          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
-            -H "Content-Type: application/json" \
-            -H "x-api-key: $ANTHROPIC_API_KEY" \
-            -H "anthropic-version: 2023-06-01" \
-            -d @request.json)
-
-          echo "API Response received"
-
-          # Extract the review result
-          REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
-
-          if [[ -z "$REVIEW" ]]; then
-            echo "Failed to get review from Claude API"
-            echo "review_success=false" >> $GITHUB_OUTPUT
-            echo "$RESPONSE" > api_error.txt
-            exit 0
+          # Check for dangerous patterns
+          if grep -qE '(os\.exec|system\(|eval\(|exec\()' module_code.ca 2>/dev/null; then
+            ISSUES="${ISSUES}- ❌ Dangerous: Found potential command execution\n"
           fi
 
-          echo "$REVIEW" > review_result.json
-          echo "review_success=true" >> $GITHUB_OUTPUT
+          if grep -qE '(env\[|getenv|ENV\.)' module_code.ca 2>/dev/null; then
+            WARNINGS="${WARNINGS}- ⚠️ Warning: Accesses environment variables\n"
+          fi
 
-          # Extract verdict
-          VERDICT=$(echo "$REVIEW" | jq -r '.verdict // "NEEDS_REVIEW"')
-          echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
+          if grep -qE 'http\.(get|post|put|delete|request)' module_code.ca 2>/dev/null; then
+            WARNINGS="${WARNINGS}- ⚠️ Warning: Makes HTTP requests\n"
+          fi
 
-      - name: Post Review Comment
-        if: steps.ai_review.outputs.review_success == 'true'
+          if grep -qE '(io\.write_file|io\.read_file)' module_code.ca 2>/dev/null; then
+            WARNINGS="${WARNINGS}- ⚠️ Warning: Performs file I/O operations\n"
+          fi
+
+          if grep -qE '(base64|decode|encode).*exec' module_code.ca 2>/dev/null; then
+            ISSUES="${ISSUES}- ❌ Dangerous: Possible encoded execution\n"
+          fi
+
+          if [[ -n "$ISSUES" ]]; then
+            echo "status=critical" >> $GITHUB_OUTPUT
+          elif [[ -n "$WARNINGS" ]]; then
+            echo "status=warning" >> $GITHUB_OUTPUT
+          else
+            echo "status=safe" >> $GITHUB_OUTPUT
+          fi
+
+          # Store for later use
+          echo "SECURITY_ISSUES<<EOF" >> $GITHUB_ENV
+          echo -e "$ISSUES$WARNINGS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: License Check
+        id: license
+        run: |
+          LICENSE="${{ steps.fetch.outputs.license }}"
+          VALID_LICENSES="MIT|Apache-2.0|BSD-2-Clause|BSD-3-Clause|GPL-2.0|GPL-3.0|LGPL-2.1|LGPL-3.0|MPL-2.0|ISC|Unlicense"
+
+          if [[ -z "$LICENSE" ]]; then
+            echo "status=missing" >> $GITHUB_OUTPUT
+            echo "details=No license specified" >> $GITHUB_OUTPUT
+          elif echo "$LICENSE" | grep -qE "^($VALID_LICENSES)$"; then
+            echo "status=valid" >> $GITHUB_OUTPUT
+            echo "details=$LICENSE" >> $GITHUB_OUTPUT
+          else
+            echo "status=unknown" >> $GITHUB_OUTPUT
+            echo "details=$LICENSE (not a recognized SPDX identifier)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Review
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const review = JSON.parse(fs.readFileSync('review_result.json', 'utf8'));
+            const securityStatus = '${{ steps.security.outputs.status }}';
+            const licenseStatus = '${{ steps.license.outputs.status }}';
+            const licenseDetails = '${{ steps.license.outputs.details }}';
+            const securityIssues = process.env.SECURITY_ISSUES || 'None detected';
+            const fetchSuccess = '${{ steps.fetch.outputs.fetch_success }}';
 
-            const verdict = review.verdict;
-            const emoji = verdict === 'APPROVE' ? '✅' : verdict === 'REJECT' ? '❌' : '⚠️';
+            let verdict = 'APPROVE';
+            let verdictEmoji = '✅';
 
-            const maliciousEmoji = review.malicious.score === 'none' ? '✅' : review.malicious.score === 'suspicious' ? '⚠️' : '❌';
-            const securityEmoji = review.security.score === 'safe' ? '✅' : review.security.score === 'warning' ? '⚠️' : '❌';
-            const licenseEmoji = review.license.valid ? '✅' : '❌';
+            if (securityStatus === 'critical' || licenseStatus === 'missing') {
+              verdict = 'REQUEST_CHANGES';
+              verdictEmoji = '❌';
+            } else if (securityStatus === 'warning' || licenseStatus === 'unknown') {
+              verdict = 'COMMENT';
+              verdictEmoji = '⚠️';
+            }
 
-            const body = `## ${emoji} AI Review: ${verdict}
+            const securityEmoji = securityStatus === 'safe' ? '✅' : securityStatus === 'warning' ? '⚠️' : '❌';
+            const licenseEmoji = licenseStatus === 'valid' ? '✅' : licenseStatus === 'unknown' ? '⚠️' : '❌';
 
-            ### Review Results
+            let body = `## ${verdictEmoji} Module Review
 
-            | Criteria | Status | Details |
-            |----------|--------|---------|
-            | Malicious Intent | ${maliciousEmoji} ${review.malicious.score} | ${review.malicious.details} |
-            | Security | ${securityEmoji} ${review.security.score} | ${review.security.details} |
-            | License | ${licenseEmoji} ${review.license.valid ? 'Valid' : 'Invalid'} | ${review.license.name || 'Not specified'} - ${review.license.details} |
-
-            ### Summary
-            ${review.summary}
+            | Check | Status | Details |
+            |-------|--------|---------|
+            | Security | ${securityEmoji} ${securityStatus} | ${securityIssues.trim() || 'No issues detected'} |
+            | License | ${licenseEmoji} ${licenseStatus} | ${licenseDetails} |
+            | Source | ${fetchSuccess === 'true' ? '✅' : '❌'} | ${fetchSuccess === 'true' ? 'Code fetched successfully' : 'Could not fetch source code'} |
 
             ---
-            *Reviewed by Claude AI*`;
+            *Automated review by Boneyard*`;
 
             await github.rest.pulls.createReview({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
-              event: verdict === 'APPROVE' ? 'APPROVE' : verdict === 'REJECT' ? 'REQUEST_CHANGES' : 'COMMENT',
+              event: verdict,
               body: body
-            });
-
-      - name: Auto-merge if approved
-        if: steps.ai_review.outputs.verdict == 'APPROVE'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
-
-      - name: Post error comment if review failed
-        if: steps.fetch.outputs.fetch_success == 'false' || steps.ai_review.outputs.review_success == 'false'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: '⚠️ AI Review could not be completed. Manual review required.\n\nPossible reasons:\n- Could not fetch module source code\n- API error during review'
             });
