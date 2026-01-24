@@ -213,6 +213,16 @@ jobs:
                 merge_method: 'squash'
               });
               console.log('PR merged successfully');
+
+              // Delete the branch after successful merge
+              const branchName = context.payload.pull_request.head.ref;
+              console.log('Deleting branch:', branchName);
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branchName}`
+              });
+              console.log('Branch deleted successfully');
             } catch (error) {
               console.log('Error details:', JSON.stringify(error, null, 2));
               console.log('Error message:', error.message);
