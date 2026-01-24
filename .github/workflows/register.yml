@@ -126,7 +126,14 @@ jobs:
           mkdir -p "$INDEX_PATH"
 
           # Derive source_url from raw URL
-          SOURCE_URL=$(echo "${{ steps.extract.outputs.url }}" | sed 's|raw.githubusercontent.com|github.com|' | sed 's|/main/meta.toml||' | sed 's|/master/meta.toml||')
+          # Handle various URL patterns:
+          # - https://raw.githubusercontent.com/author/repo/main/meta.toml
+          # - https://raw.githubusercontent.com/author/repo/refs/heads/main/meta.toml
+          SOURCE_URL=$(echo "${{ steps.extract.outputs.url }}" | \
+            sed 's|raw.githubusercontent.com|github.com|' | \
+            sed 's|/refs/heads/[^/]*/meta.toml||' | \
+            sed 's|/main/meta.toml||' | \
+            sed 's|/master/meta.toml||')
 
           # Add source_url to meta.toml
           echo "" >> meta.toml

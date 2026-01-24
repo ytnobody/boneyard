@@ -106,8 +106,8 @@ EOF
     fi
 
     cat > "$DIR/latest.toml" <<EOF
-version = null
-tag = null
+version = ""
+tag = ""
 commit = "$COMMIT"
 updated = "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EOF

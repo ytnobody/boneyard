@@ -11,4 +11,4 @@ entry = "mod.ca"
 # [dependencies]
 # "author/module" = "^1.0.0"
 
-source_url = "https://github.com/ytnobody/calcium-json/refs/heads"
+source_url = "https://github.com/ytnobody/calcium-json"
