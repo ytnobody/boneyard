@@ -15,7 +15,7 @@ Add `meta.toml` to your repository root:
 
 ```toml
 name = "my-module"
-author = "YOURNAME"
+author = "yourname"
 description = "A brief description of your module"
 license = "MIT"
 keywords = ["utility", "helper"]
@@ -24,7 +24,7 @@ entry = "mod.ca"
 
 ### Step 2: Open an Issue
 
-[Create a new issue](https://github.com/calcium-lang/boneyard/issues/new) with the URL to your `meta.toml`:
+[Create a new issue](https://github.com/ytnobody/boneyard/issues/new) with the URL to your `meta.toml`:
 
 ```
 https://github.com/yourname/my-module/blob/main/meta.toml
@@ -52,7 +52,7 @@ git push origin v1.0.0
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Module name |
-| `author` | Yes | Author name (uppercase recommended) |
+| `author` | Yes | Author name (lowercase required) |
 | `description` | Yes | Brief description |
 | `license` | No | License identifier (default: MIT) |
 | `keywords` | No | Search keywords |
