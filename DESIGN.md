@@ -45,7 +45,7 @@ labels: registration
 <!-- Paste the raw URL to your meta.toml -->
 
 ```
-https://raw.githubusercontent.com/AUTHOR/REPO/main/meta.toml
+https://raw.githubusercontent.com/author/repo/main/meta.toml
 ```
 ```
 
@@ -227,10 +227,10 @@ grep -q '^name = ' "$FILE" || { echo "Missing: name"; exit 1; }
 grep -q '^author = ' "$FILE" || { echo "Missing: author"; exit 1; }
 grep -q '^description = ' "$FILE" || { echo "Missing: description"; exit 1; }
 
-# Validate author is uppercase
+# Validate author is lowercase
 AUTHOR=$(grep '^author' "$FILE" | cut -d'"' -f2)
-if [[ "$AUTHOR" != "${AUTHOR^^}" ]]; then
-  echo "Author must be uppercase: $AUTHOR"
+if [[ "$AUTHOR" != "${AUTHOR,,}" ]]; then
+  echo "Author must be lowercase: $AUTHOR"
   exit 1
 fi
 
