@@ -10,6 +10,14 @@ The official module registry for [Calcium](https://github.com/ytnobody/calcium-l
 
 Boneyard is a module registry that automatically indexes Calcium packages. Authors register their module's `meta.toml` URL, and Boneyard periodically crawls repositories to collect version information from Git releases.
 
+## Status
+
+[![Close Issue](https://github.com/ytnobody/boneyard/actions/workflows/close-issue.yml/badge.svg)](https://github.com/ytnobody/boneyard/actions/workflows/close-issue.yml)
+[![Crawl](https://github.com/ytnobody/boneyard/actions/workflows/crawl.yml/badge.svg)](https://github.com/ytnobody/boneyard/actions/workflows/crawl.yml)
+[![Register](https://github.com/ytnobody/boneyard/actions/workflows/register.yml/badge.svg)](https://github.com/ytnobody/boneyard/actions/workflows/register.yml)
+[![Review](https://github.com/ytnobody/boneyard/actions/workflows/review.yml/badge.svg)](https://github.com/ytnobody/boneyard/actions/workflows/review.yml)
+
+
 ## Using Modules
 
 ```calcium
