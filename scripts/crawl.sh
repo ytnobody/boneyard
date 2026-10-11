@@ -117,3 +117,6 @@ EOF
 done
 
 echo "Crawl complete"
+
+# Regenerate the search index from any updated version data
+./scripts/build-search.sh
