@@ -31,3 +31,15 @@ jobs:
         run: |
           chmod +x scripts/*.sh
           ./scripts/test-all.sh
+
+      - name: Verify search.json is up to date
+        run: |
+          TMP=$(mktemp -d)
+          ./scripts/build-search.sh "$TMP/search.json" >/dev/null 2>&1
+          if ! diff -q "$TMP/search.json" index/search.json >/dev/null; then
+            echo "error: index/search.json is out of date."
+            echo "Re-run: ./scripts/build-search.sh"
+            diff "$TMP/search.json" index/search.json || true
+            exit 1
+          fi
+          echo "index/search.json is up to date"
