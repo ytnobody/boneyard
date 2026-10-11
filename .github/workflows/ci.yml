@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck
+
+      - name: Shell syntax check
+        run: |
+          for f in scripts/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Shellcheck lint
+        run: |
+          shellcheck scripts/*.sh || true
+
+      - name: Run unit tests
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/test-all.sh
